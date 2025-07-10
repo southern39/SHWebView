@@ -26,13 +26,20 @@ object WebViewInterceptRequestProxy {
         File(application.cacheDir, "SHWebView")
     }
 
-    private val okHttpClient by lazy {
-        OkHttpClient.Builder().cache(Cache(webViewResourceCacheDir, 600L * 1024 * 1924))
+    private var allowInspect: Boolean = false
+
+    private var okHttpClient: OkHttpClient? = null
+
+    private fun initOkHttpClient() {
+        val builder =  OkHttpClient.Builder().cache(Cache(webViewResourceCacheDir, 600L * 1024 * 1924))
             .followRedirects(false)
             .followSslRedirects(false)
             .addNetworkInterceptor(getChuckerInterceptor(application))
             .addNetworkInterceptor(getWebViewCacheInterceptor())
-            .build()
+        if (allowInspect) {
+            builder.addNetworkInterceptor(getChuckerInterceptor(application))
+        }
+        okHttpClient = builder.build()
     }
 
     private fun getChuckerInterceptor(application: Application): Interceptor {
@@ -59,7 +66,11 @@ object WebViewInterceptRequestProxy {
         this.application = application
     }
 
-    fun shouldInterceptRequest(webResourceRequest: WebResourceRequest): WebResourceResponse? {
+    fun shouldInterceptRequest(
+        webResourceRequest: WebResourceRequest,
+        allowInspect: Boolean = false
+    ): WebResourceResponse? {
+        this.allowInspect = allowInspect
         if (toProxy(webResourceRequest)) {
             return getHttpResource(webResourceRequest)
         }
@@ -98,29 +109,32 @@ object WebViewInterceptRequestProxy {
             webResourceRequest.requestHeaders?.forEach {
                 requestBuilder.addHeader(it.key, it.value)
             }
-            val response = okHttpClient
-                .newCall(requestBuilder.build())
-                .execute()
-            val body = response.body
-            val code = response.code
-            if (body == null || code != 200) {
-                return null
-            }
-            val mimeType = response.header("content-type", body.contentType()?.type)
-            val encoding = response.header("content-encoding", "utf-8")
-            val responseHeaders = buildMap {
-                response.headers.map {
-                    put(it.first, it.second)
+            if (okHttpClient == null) initOkHttpClient()
+            okHttpClient?.let {
+                val response = it
+                    .newCall(requestBuilder.build())
+                    .execute()
+                val body = response.body
+                val code = response.code
+                if (body == null || code != 200) {
+                    return null
                 }
+                val mimeType = response.header("content-type", body.contentType()?.type)
+                val encoding = response.header("content-encoding", "utf-8")
+                val responseHeaders = buildMap {
+                    response.headers.map {
+                        put(it.first, it.second)
+                    }
+                }
+                var message = response.message
+                if (message.isBlank()) {
+                    message = "OK"
+                }
+                val resourceResponse = WebResourceResponse(mimeType, encoding, body.byteStream())
+                resourceResponse.responseHeaders = responseHeaders
+                resourceResponse.setStatusCodeAndReasonPhrase(code, message)
+                return resourceResponse
             }
-            var message = response.message
-            if (message.isBlank()) {
-                message = "OK"
-            }
-            val resourceResponse = WebResourceResponse(mimeType, encoding, body.byteStream())
-            resourceResponse.responseHeaders = responseHeaders
-            resourceResponse.setStatusCodeAndReasonPhrase(code, message)
-            return resourceResponse
         } catch (e: Throwable) {
             e.printStackTrace()
         }

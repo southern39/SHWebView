@@ -48,9 +48,16 @@ class SHWebView @JvmOverloads constructor(context: Context, attrs: AttributeSet?
         File(baseCacheDir, "appCache").absolutePath
     }
 
+    var allowInspectRequest: Boolean = false
+        private set
+
     var hostLifecycleOwner: LifecycleOwner? = null
 
     var webViewListener: WebViewListener? = null
+
+    fun setAllowInspectRequest(allowInspectRequest: Boolean) {
+        this.allowInspectRequest = allowInspectRequest
+    }
 
     private val mWebChromeClient = object : WebChromeClient() {
 
@@ -139,7 +146,7 @@ class SHWebView @JvmOverloads constructor(context: Context, attrs: AttributeSet?
             webView: WebView,
             request: WebResourceRequest
         ): WebResourceResponse? {
-            return WebViewInterceptRequestProxy.shouldInterceptRequest(request)
+            return WebViewInterceptRequestProxy.shouldInterceptRequest(request, allowInspectRequest)
                 ?: super.shouldInterceptRequest(webView, request)
         }
     }
