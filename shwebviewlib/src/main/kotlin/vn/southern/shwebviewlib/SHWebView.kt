@@ -33,8 +33,8 @@ interface WebViewListener {
     fun onPageFinished(webView: SHWebView, url: String)
 }
 
-class SHWebView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
-    WebView(context, attrs) {
+class SHWebView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0) :
+    WebView(context, attrs, defStyleAttr) {
 
     private val baseCacheDir by lazy {
         File(context.cacheDir, "webView")
@@ -192,6 +192,8 @@ class SHWebView @JvmOverloads constructor(context: Context, attrs: AttributeSet?
             displayZoomControls = false
             allowFileAccess = true
             allowContentAccess = true
+            setAllowFileAccessFromFileURLs(true)
+            setAllowUniversalAccessFromFileURLs(true)
             loadsImagesAutomatically = true
             safeBrowsingEnabled = false
             domStorageEnabled = true
